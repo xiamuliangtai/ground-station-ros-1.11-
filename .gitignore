@@ -1,0 +1,46 @@
+# catkin
+build/
+devel/
+install/
+logs/
+.catkin_tools/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Qt
+*.user
+*.user.*
+*.pro.user
+*.autosave
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+
+# IDE
+.vscode/
+.idea/
+
+# system
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Python cache
+__pycache__/
+*.pyc
+
+# ROS logs / bags
+*.bag
+*.log
+
+# binaries
+*.out
+*.o
+*.so
+*.a
