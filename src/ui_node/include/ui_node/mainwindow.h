@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <gs_msgs/WaypointArray.h>
 #include "qserialport.h"
 #include <QMainWindow>
 #include <QPixmap>
@@ -31,7 +32,7 @@ private slots:
     void drawPathOnLabel(QList<QPoint> path);
     void on_block(QList<QPoint> block);
     void on_animal(int animal,QString x,QString y);
-    //void onPathReceived(const gs_msgs::WaypointArray& msg);
+    void onPathReceived(const gs_msgs::WaypointArray& msg);
     //void onTelemetryReceived(const gs_msgs::Telemetry& msg);
     //void onMissionStatusReceived(const gs_msgs::MissionStatus& msg);
 

@@ -37,6 +37,11 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
      //rosIf_->init();
+     if (!rosIf_->init()) {
+    qDebug() << "[MainWindow] RosInterface init failed";
+    } else {
+        qDebug() << "[MainWindow] RosInterface init success";
+    }
     map=QPixmap(":/map");
     map.scaled(ui->label->size());
     ui->label->setScaledContents(1);
@@ -59,8 +64,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this,&MainWindow::run1,test1,&serialPort::run);
     connect(test1,&serialPort::sendData,this,&MainWindow::on_animal);
     connect(this,&MainWindow::clearData,test1,&serialPort::clearData);
-    //connect(rosIf_, &RosInterface::pathReceived,
-    //        this, &MainWindow::onPathReceived);
+    connect(rosIf_, &RosInterface::pathReceived,
+           this, &MainWindow::onPathReceived);
 
     //connect(rosIf_, &RosInterface::telemetryReceived,
     //        this, &MainWindow::onTelemetryReceived);
@@ -126,54 +131,82 @@ void MainWindow::onCellClicked(int row, int col)
 
 void MainWindow::drawPathOnLabel(QList<QPoint> path)
 {
+    qDebug() << "[drawPathOnLabel] enter";
+
     emit clearData();
-    //QPixmap tempMap =ui->label->pixmap();
+    qDebug() << "[drawPathOnLabel] after clearData";
+
     const QPixmap* originalPix = ui->label->pixmap();
     if (!originalPix) {
+        qDebug() << "[drawPathOnLabel] originalPix is null";
         QMessageBox::warning(this, "警告", "标签上没有图片");
         return;
     }
+
+    qDebug() << "[drawPathOnLabel] pixmap ok";
+
     QPixmap tempMap = *originalPix;
     QPainter painter(&tempMap);
     QPen pen(Qt::red);
     pen.setWidth(8);
     painter.setPen(pen);
-    qDebug()<<path.size();
+
+    qDebug() << "[drawPathOnLabel] painter ok, path size =" << path.size();
+
     if(path.isEmpty())
     {
+        qDebug() << "[drawPathOnLabel] path empty";
         QMessageBox::information(this,"提示", "找不到合法路径");
         return;
     }
+
     for(int i=1;i<path.size();i++)
     {
         QPoint a=gridToPixel(path[i-1].x(),path[i-1].y());
         QPoint b=gridToPixel(path[i].x(),path[i].y());
         painter.drawLine(a,b);
     }
+
+    qDebug() << "[drawPathOnLabel] line draw finished";
+
     ui->label->setPixmap(tempMap);
     ui->pushButton->setEnabled(0);
+
+    qDebug() << "[drawPathOnLabel] label updated";
+
     ui->label_6->setText("象："+QString::number(xiang=0));
     ui->label_7->setText("虎："+QString::number(hu=0));
     ui->label_8->setText("狼："+QString::number(lang=0));
     ui->label_9->setText("猴："+QString::number(hou=0));
     ui->label_10->setText("孔雀："+QString::number(que=0));
+
     xiangPosition.clear();
     huPosition.clear();
     langPosition.clear();
     houPosition.clear();
     quePosition.clear();
+
+    qDebug() << "[drawPathOnLabel] labels reset";
+
+    pathData.clear();
     for(int i=0;i<path.size();i++)
     {
         pathData.append(path[i].x());
         pathData.append(8-path[i].y());
         pathData.append("\n");
     }
-    // serial->write(pathData);
+
+    qDebug() << "[drawPathOnLabel] pathData prepared, size =" << pathData.size();
+
     if (serial && serial->isOpen()) {
-    serial->write(pathData);
+        qDebug() << "[drawPathOnLabel] serial write begin";
+        serial->write(pathData);
+        qDebug() << "[drawPathOnLabel] serial write done";
     } else {
-        qDebug() << "serial 未打开，跳过 write()";
+        qDebug() << "[drawPathOnLabel] serial not open, skip write";
     }
+
+    qDebug() << "[drawPathOnLabel] exit";
 }
 
 void MainWindow::on_block(QList<QPoint> block)
