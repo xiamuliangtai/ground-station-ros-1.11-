@@ -1,3 +1,4 @@
 <launch>
+    <node pkg="planner_node" type="planner_node" name="planner_node" output="screen"/>
     <node pkg="ui_node" type="ui_node" name="ui_node" output="screen"/>
 </launch>

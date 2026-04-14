@@ -292,7 +292,8 @@ void MainWindow::on_pushButton_clicked()
         QMessageBox::information(this,"提示", "请设置三个连续相邻禁飞区");
         return;
     }
-    emit run(m_block);
+    //emit run(m_block);
+    rosIf_->publishNoFlyCells(m_block);
 }
 
 QPoint MainWindow::gridToPixel(int row, int col)
@@ -302,6 +303,21 @@ QPoint MainWindow::gridToPixel(int row, int col)
     int x = w*0.5+(row-1)*w+158;
     int y = h*0.5+(col-1)*h+75;
     return QPoint(x, y);
+}
+
+void MainWindow::onPathReceived(const gs_msgs::WaypointArray& msg)
+{
+    qDebug() << "[MainWindow] onPathReceived, points =" << msg.points.size();
+
+    QList<QPoint> path;
+
+    for (const auto& p : msg.points) {
+        int col = static_cast<int>(p.x);
+        int row = static_cast<int>(p.y);
+        path.append(QPoint(col, row));
+    }
+
+    drawPathOnLabel(path);
 }
 
 void MainWindow::on_pushButton_2_clicked()
