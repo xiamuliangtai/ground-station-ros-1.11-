@@ -1,5 +1,5 @@
 <RCC>
     <qresource prefix="/">
-        <file alias="map">map.png</file>
+        <file alias="map">map/map.png</file>
     </qresource>
 </RCC>

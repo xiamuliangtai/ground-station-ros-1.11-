@@ -9,6 +9,7 @@
 #include<QThread>
 #include<simplepathgenerator.h>
 #include"serialport.h"
+#include "ui_node/ros_interface.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -30,9 +31,13 @@ private slots:
     void drawPathOnLabel(QList<QPoint> path);
     void on_block(QList<QPoint> block);
     void on_animal(int animal,QString x,QString y);
+    //void onPathReceived(const gs_msgs::WaypointArray& msg);
+    //void onTelemetryReceived(const gs_msgs::Telemetry& msg);
+    //void onMissionStatusReceived(const gs_msgs::MissionStatus& msg);
 
 private:
     Ui::MainWindow *ui;
+    RosInterface *rosIf_;
     int count=0;
     QList<QPoint> m_block;
     QPoint gridToPixel(int row, int col);

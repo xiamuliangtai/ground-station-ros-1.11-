@@ -1,5 +1,5 @@
 #include "mainwindow.h"
-
+#include "ui_node/mainwindow.h"
 #include <QApplication>
 #include <QList>
 #include <QPoint>

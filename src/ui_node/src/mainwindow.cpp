@@ -33,8 +33,10 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
+    ,rosIf_(new RosInterface(this))
 {
     ui->setupUi(this);
+     //rosIf_->init();
     map=QPixmap(":/map");
     map.scaled(ui->label->size());
     ui->label->setScaledContents(1);
@@ -57,6 +59,15 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this,&MainWindow::run1,test1,&serialPort::run);
     connect(test1,&serialPort::sendData,this,&MainWindow::on_animal);
     connect(this,&MainWindow::clearData,test1,&serialPort::clearData);
+    //connect(rosIf_, &RosInterface::pathReceived,
+    //        this, &MainWindow::onPathReceived);
+
+    //connect(rosIf_, &RosInterface::telemetryReceived,
+    //        this, &MainWindow::onTelemetryReceived);
+
+    //connect(rosIf_, &RosInterface::missionStatusReceived,
+    //        this, &MainWindow::onMissionStatusReceived);
+
     thread1->start();
     emit run1();
     // 初始化所有单元格并创建 Item
