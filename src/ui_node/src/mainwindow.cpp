@@ -78,18 +78,18 @@ MainWindow::MainWindow(QWidget *parent)
             item->setBackground(Qt::white);
         }
     }
-    serial = new QSerialPort(this);
-    serial->setPortName("/dev/ttyS1");
-    serial->setBaudRate(QSerialPort::Baud115200);
-    serial->setDataBits(QSerialPort::Data8);
-    serial->setParity(QSerialPort::NoParity);
-    serial->setStopBits(QSerialPort::OneStop);
-    serial->setFlowControl(QSerialPort::NoFlowControl);
-    if (serial->open(QIODevice::WriteOnly)) {
-        qDebug() << "无线串口打开成功！";
-    } else {
-        qDebug() << "打开失败：" << serial->errorString();
-    }
+    // serial = new QSerialPort(this);
+    // serial->setPortName("/dev/ttyS1");
+    // serial->setBaudRate(QSerialPort::Baud115200);
+    // serial->setDataBits(QSerialPort::Data8);
+    // serial->setParity(QSerialPort::NoParity);
+    // serial->setStopBits(QSerialPort::OneStop);
+    // serial->setFlowControl(QSerialPort::NoFlowControl);
+    // if (serial->open(QIODevice::WriteOnly)) {
+    //     qDebug() << "无线串口打开成功！";
+    // } else {
+    //     qDebug() << "打开失败：" << serial->errorString();
+    // }
 }
 
 MainWindow::~MainWindow()
@@ -168,7 +168,12 @@ void MainWindow::drawPathOnLabel(QList<QPoint> path)
         pathData.append(8-path[i].y());
         pathData.append("\n");
     }
+    // serial->write(pathData);
+    if (serial && serial->isOpen()) {
     serial->write(pathData);
+    } else {
+        qDebug() << "serial 未打开，跳过 write()";
+    }
 }
 
 void MainWindow::on_block(QList<QPoint> block)
@@ -283,7 +288,12 @@ void MainWindow::on_pushButton_2_clicked()
     // 3. 恢复原始图片和按钮状态
     ui->label->setPixmap(map);
     ui->pushButton->setEnabled(true);
+    // serial->clear();
+    if (serial && serial->isOpen()) {
     serial->clear();
+    } else {
+        qDebug() << "serial 未打开，跳过 clear()";
+    }
     pathData.clear();
     ui->label_2->setText("NULL");
     ui->label_3->setText("NULL");
