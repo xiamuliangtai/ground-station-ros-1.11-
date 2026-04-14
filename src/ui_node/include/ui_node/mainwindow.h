@@ -46,7 +46,8 @@ private:
     serialPort* test1;
     QThread *thread;
     QThread *thread1;
-    QSerialPort *serial;
+    // QSerialPort *serial;
+    QSerialPort *serial = nullptr;
     QByteArray pathData;
     uint hu=0;
     uint xiang=0;
