@@ -13,6 +13,10 @@ RosInterface::~RosInterface()
 
 bool RosInterface::init()
 {
+    if (initialized_) {
+        return true;
+    }
+
     qRegisterMetaType<gs_msgs::WaypointArray>("gs_msgs::WaypointArray");
 
     if (!ros::isInitialized()) {
@@ -34,12 +38,18 @@ bool RosInterface::init()
     spinner_.reset(new ros::AsyncSpinner(1));
     spinner_->start();
 
+    initialized_ = true;
     qDebug() << "[RosInterface] init success";
     return true;
 }
 
 void RosInterface::publishNoFlyCells(const QList<QPoint>& blocks)
 {
+    if (!initialized_ || !noFlyPub_) {
+        qDebug() << "[RosInterface] publisher not ready, skip publish";
+        return;
+    }
+
     gs_msgs::NoFlyCells msg;
 
     for (const QPoint& p : blocks) {
@@ -61,6 +71,8 @@ void RosInterface::publishNoFlyCells(const QList<QPoint>& blocks)
 
 void RosInterface::pathCallback(const gs_msgs::WaypointArray::ConstPtr& msg)
 {
+    // AsyncSpinner线程回调 -> Qt信号转发
+    // 当前连接为同进程默认AutoConnection，保持第一阶段简单稳定。
     qDebug() << "[RosInterface] received /planner/path, size =" << msg->points.size();
     emit pathReceived(*msg);
 }

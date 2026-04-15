@@ -35,6 +35,8 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
     ,rosIf_(new RosInterface(this))
 {
+    constexpr bool kEnableLegacyLocalPlanner = false; // 旧本地规划链路，当前阶段默认隔离
+
     ui->setupUi(this);
      //rosIf_->init();
      if (!rosIf_->init()) {
@@ -51,13 +53,20 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tableWidget->setEditTriggers(QTableWidget::NoEditTriggers);
     ui->tableWidget->setSelectionMode(QAbstractItemView::NoSelection);
     connect(ui->tableWidget,&QTableWidget::cellClicked,this,&MainWindow::onCellClicked);
-    thread=new QThread;
-    test=new SimplePathGenerator;
-    test->moveToThread(thread);
-    connect(this,&MainWindow::run,test,&SimplePathGenerator::run);
-    connect(test,&SimplePathGenerator::sendPath,this,&MainWindow::drawPathOnLabel);
-    connect(test,&SimplePathGenerator::sendblock,this,&MainWindow::on_block);
-    thread->start();
+    // === 旧本地路径生成链路（隔离保留） ===
+    // TODO(stage-next): 完整迁移到 planner_node 后删除。
+    if (kEnableLegacyLocalPlanner) {
+        thread = new QThread;
+        test = new SimplePathGenerator;
+        test->moveToThread(thread);
+        connect(this, &MainWindow::run, test, &SimplePathGenerator::run);
+        connect(test, &SimplePathGenerator::sendPath, this, &MainWindow::drawPathOnLabel);
+        connect(test, &SimplePathGenerator::sendblock, this, &MainWindow::on_block);
+        thread->start();
+        qDebug() << "[MainWindow] legacy local planner enabled";
+    } else {
+        qDebug() << "[MainWindow] legacy local planner isolated";
+    }
     thread1=new QThread;
     test1=new serialPort;
     test1->moveToThread(thread1);
@@ -83,6 +92,7 @@ MainWindow::MainWindow(QWidget *parent)
             item->setBackground(Qt::white);
         }
     }
+    // TODO(stage-next): UI内直接串口发送为历史逻辑，后续迁移到独立 bridge node。
     // serial = new QSerialPort(this);
     // serial->setPortName("/dev/ttyS1");
     // serial->setBaudRate(QSerialPort::Baud115200);
