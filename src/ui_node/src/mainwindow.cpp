@@ -30,11 +30,51 @@
 
     return false;
 }
+
+static bool isStraightSegmentClear(const QPoint& a,
+                                   const QPoint& b,
+                                   const QList<QPoint>& blocked)
+{
+    // 必须是水平或竖直线段
+    if (a.x() != b.x() && a.y() != b.y()) {
+        return false;
+    }
+
+    // 竖直线段：列相同，检查中间所有格子是否碰到禁飞区
+    if (a.x() == b.x()) {
+        int col = a.x();
+        int rowMin = std::min(a.y(), b.y());
+        int rowMax = std::max(a.y(), b.y());
+
+        for (int row = rowMin + 1; row < rowMax; ++row) {
+            if (blocked.contains(QPoint(col, row))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // 水平线段：行相同，检查中间所有格子是否碰到禁飞区
+    int row = a.y();
+    int colMin = std::min(a.x(), b.x());
+    int colMax = std::max(a.x(), b.x());
+
+    for (int col = colMin + 1; col < colMax; ++col) {
+        if (blocked.contains(QPoint(col, row))) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     ,rosIf_(new RosInterface(this))
 {
+    constexpr bool kEnableLegacyLocalPlanner = false; // 旧本地规划链路，当前阶段默认隔离
+
     ui->setupUi(this);
      //rosIf_->init();
      if (!rosIf_->init()) {
@@ -51,13 +91,20 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tableWidget->setEditTriggers(QTableWidget::NoEditTriggers);
     ui->tableWidget->setSelectionMode(QAbstractItemView::NoSelection);
     connect(ui->tableWidget,&QTableWidget::cellClicked,this,&MainWindow::onCellClicked);
-    thread=new QThread;
-    test=new SimplePathGenerator;
-    test->moveToThread(thread);
-    connect(this,&MainWindow::run,test,&SimplePathGenerator::run);
-    connect(test,&SimplePathGenerator::sendPath,this,&MainWindow::drawPathOnLabel);
-    connect(test,&SimplePathGenerator::sendblock,this,&MainWindow::on_block);
-    thread->start();
+    // === 旧本地路径生成链路（隔离保留） ===
+    // TODO(stage-next): 完整迁移到 planner_node 后删除。
+    if (kEnableLegacyLocalPlanner) {
+        thread = new QThread;
+        test = new SimplePathGenerator;
+        test->moveToThread(thread);
+        connect(this, &MainWindow::run, test, &SimplePathGenerator::run);
+        connect(test, &SimplePathGenerator::sendPath, this, &MainWindow::drawPathOnLabel);
+        connect(test, &SimplePathGenerator::sendblock, this, &MainWindow::on_block);
+        thread->start();
+        qDebug() << "[MainWindow] legacy local planner enabled";
+    } else {
+        qDebug() << "[MainWindow] legacy local planner isolated";
+    }
     thread1=new QThread;
     test1=new serialPort;
     test1->moveToThread(thread1);
@@ -83,6 +130,7 @@ MainWindow::MainWindow(QWidget *parent)
             item->setBackground(Qt::white);
         }
     }
+    // TODO(stage-next): UI内直接串口发送为历史逻辑，后续迁移到独立 bridge node。
     // serial = new QSerialPort(this);
     // serial->setPortName("/dev/ttyS1");
     // serial->setBaudRate(QSerialPort::Baud115200);
@@ -160,12 +208,20 @@ void MainWindow::drawPathOnLabel(QList<QPoint> path)
         return;
     }
 
-    for(int i=1;i<path.size();i++)
-    {
-        QPoint a=gridToPixel(path[i-1].x(),path[i-1].y());
-        QPoint b=gridToPixel(path[i].x(),path[i].y());
-        painter.drawLine(a,b);
+    for(int i = 1; i < path.size(); i++)
+{
+    const QPoint& p0 = path[i - 1];
+    const QPoint& p1 = path[i];
+
+    if (!isStraightSegmentClear(p0, p1, m_block)) {
+        qDebug() << "[drawPathOnLabel] skip invalid segment:" << p0 << "->" << p1;
+        continue;
     }
+
+    QPoint a = gridToPixel(p0.x(), p0.y());
+    QPoint b = gridToPixel(p1.x(), p1.y());
+    painter.drawLine(a, b);
+}
 
     qDebug() << "[drawPathOnLabel] line draw finished";
 

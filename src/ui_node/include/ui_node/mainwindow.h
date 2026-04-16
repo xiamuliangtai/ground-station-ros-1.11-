@@ -37,17 +37,22 @@ private slots:
     //void onMissionStatusReceived(const gs_msgs::MissionStatus& msg);
 
 private:
+    // === 当前主链路（保留） ===
+    // UI -> RosInterface -> planner_node -> RosInterface -> UI绘图
     Ui::MainWindow *ui;
     RosInterface *rosIf_;
     int count=0;
     QList<QPoint> m_block;
     QPoint gridToPixel(int row, int col);
     QPixmap map;
-    SimplePathGenerator *test;
-    serialPort* test1;
-    QThread *thread;
-    QThread *thread1;
-    // QSerialPort *serial;
+    // TODO(stage-next): 旧本地路径生成器属于历史逻辑，后续迁移/删除。
+    // 当前阶段仅做隔离，不激进移除。
+    SimplePathGenerator *test = nullptr;
+    serialPort* test1 = nullptr;
+    // TODO(stage-next): 与本地路径生成器绑定的旧线程，后续随旧规划逻辑一并迁移/移除。
+    QThread *thread = nullptr;
+    QThread *thread1 = nullptr;
+    // TODO(stage-next): UI内直接串口写入属于后续迁移对象（建议迁移到独立 bridge node）。
     QSerialPort *serial = nullptr;
     QByteArray pathData;
     uint hu=0;

@@ -26,6 +26,8 @@ class SimplePathGenerator : public QObject
     Q_OBJECT
 public:
     explicit SimplePathGenerator(QObject *parent = nullptr);
+    // TODO(stage-next): 该类属于历史本地规划实现。
+    // 后续应迁移/合并到 planner_node 后再逐步移除。
 
 public:
 

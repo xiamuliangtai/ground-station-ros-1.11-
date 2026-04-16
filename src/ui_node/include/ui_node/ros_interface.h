@@ -31,6 +31,7 @@ private:
     void pathCallback(const gs_msgs::WaypointArray::ConstPtr& msg);
 
 private:
+    bool initialized_ = false;
     std::unique_ptr<ros::NodeHandle> nh_;
     std::unique_ptr<ros::AsyncSpinner> spinner_;
 
