@@ -92,6 +92,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tableWidget->setEditTriggers(QTableWidget::NoEditTriggers);
     ui->tableWidget->setSelectionMode(QAbstractItemView::NoSelection);
     connect(ui->tableWidget,&QTableWidget::cellClicked,this,&MainWindow::onCellClicked);
+    connect(rosIf_, &RosInterface::pathAvailable,
+        this, &MainWindow::onPathAvailable);
     // === 旧本地路径生成链路（隔离保留） ===
     // TODO(stage-next): 完整迁移到 planner_node 后删除。
     if (kEnableLegacyLocalPlanner) {
