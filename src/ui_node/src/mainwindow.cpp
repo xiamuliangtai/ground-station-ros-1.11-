@@ -74,6 +74,7 @@ MainWindow::MainWindow(QWidget *parent)
     ,rosIf_(new RosInterface(this))
 {
     constexpr bool kEnableLegacyLocalPlanner = false; // 旧本地规划链路，当前阶段默认隔离
+    constexpr bool kEnableLegacySerialThread = false; // 旧串口接收链路，当前阶段默认隔离
 
     ui->setupUi(this);
      //rosIf_->init();
@@ -105,23 +106,25 @@ MainWindow::MainWindow(QWidget *parent)
     } else {
         qDebug() << "[MainWindow] legacy local planner isolated";
     }
-    thread1=new QThread;
-    test1=new serialPort;
+    if (kEnableLegacySerialThread) {
+    thread1 = new QThread;
+    test1 = new serialPort;
+
     test1->moveToThread(thread1);
-    connect(this,&MainWindow::run1,test1,&serialPort::run);
-    connect(test1,&serialPort::sendData,this,&MainWindow::on_animal);
-    connect(this,&MainWindow::clearData,test1,&serialPort::clearData);
-    connect(rosIf_, &RosInterface::pathReceived,
-           this, &MainWindow::onPathReceived);
 
-    //connect(rosIf_, &RosInterface::telemetryReceived,
-    //        this, &MainWindow::onTelemetryReceived);
+    connect(this, &MainWindow::run1, test1, &serialPort::run);
+    connect(test1, &serialPort::sendData, this, &MainWindow::on_animal);
+    connect(this, &MainWindow::clearData, test1, &serialPort::clearData);
 
-    //connect(rosIf_, &RosInterface::missionStatusReceived,
-    //        this, &MainWindow::onMissionStatusReceived);
+    connect(thread1, &QThread::finished, test1, &QObject::deleteLater);
 
     thread1->start();
     emit run1();
+
+    qDebug() << "[MainWindow] legacy serial thread enabled";
+} else {
+    qDebug() << "[MainWindow] legacy serial thread isolated";
+}
     // 初始化所有单元格并创建 Item
     for(int r=0; r<7; r++){
         for(int c=1; c<10; c++){
@@ -147,9 +150,22 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    if (thread) {
+        thread->quit();
+        thread->wait();
+        delete thread;
+        thread = nullptr;
+    }
+
+    if (thread1) {
+        thread1->quit();
+        thread1->wait();
+        delete thread1;
+        thread1 = nullptr;
+    }
+
     delete ui;
 }
-
 void MainWindow::onCellClicked(int row, int col)
 {
     qDebug()<<col<<","<<row;
@@ -361,12 +377,17 @@ QPoint MainWindow::gridToPixel(int row, int col)
     return QPoint(x, y);
 }
 
-void MainWindow::onPathReceived(const gs_msgs::WaypointArray& msg)
+void MainWindow::onPathAvailable()
 {
-    qDebug() << "[MainWindow] onPathReceived, points =" << msg.points.size();
+    gs_msgs::WaypointArray msg;
+    if (!rosIf_->takeLatestPath(msg)) {
+        qDebug() << "[MainWindow] onPathAvailable but no pending path";
+        return;
+    }
+
+    qDebug() << "[MainWindow] onPathAvailable, points =" << msg.points.size();
 
     QList<QPoint> path;
-
     for (const auto& p : msg.points) {
         int col = static_cast<int>(p.x);
         int row = static_cast<int>(p.y);

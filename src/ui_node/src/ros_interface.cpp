@@ -1,6 +1,7 @@
 #include "ui_node/ros_interface.h"
 
 #include <QDebug>
+#include <QMutexLocker>
 
 RosInterface::RosInterface(QObject *parent)
     : QObject(parent)
@@ -16,8 +17,6 @@ bool RosInterface::init()
     if (initialized_) {
         return true;
     }
-
-    qRegisterMetaType<gs_msgs::WaypointArray>("gs_msgs::WaypointArray");
 
     if (!ros::isInitialized()) {
         int argc = 0;
@@ -35,12 +34,20 @@ bool RosInterface::init()
     noFlyPub_ = nh_->advertise<gs_msgs::NoFlyCells>("/ui/no_fly_cells", 1);
     pathSub_ = nh_->subscribe("/planner/path", 1, &RosInterface::pathCallback, this);
 
-    spinner_.reset(new ros::AsyncSpinner(1));
-    spinner_->start();
+    spinTimer_ = new QTimer(this);
+    connect(spinTimer_, &QTimer::timeout, this, &RosInterface::spinOnce);
+    spinTimer_->start(10);
 
     initialized_ = true;
     qDebug() << "[RosInterface] init success";
     return true;
+}
+
+void RosInterface::spinOnce()
+{
+    if (ros::ok()) {
+        ros::spinOnce();
+    }
 }
 
 void RosInterface::publishNoFlyCells(const QList<QPoint>& blocks)
@@ -71,8 +78,26 @@ void RosInterface::publishNoFlyCells(const QList<QPoint>& blocks)
 
 void RosInterface::pathCallback(const gs_msgs::WaypointArray::ConstPtr& msg)
 {
-    // AsyncSpinner线程回调 -> Qt信号转发
-    // 当前连接为同进程默认AutoConnection，保持第一阶段简单稳定。
+    {
+        QMutexLocker locker(&latestPathMutex_);
+        latestPath_ = *msg;
+        hasLatestPath_ = true;
+    }
+
     qDebug() << "[RosInterface] received /planner/path, size =" << msg->points.size();
-    emit pathReceived(*msg);
+
+    emit pathAvailable();
+}
+
+bool RosInterface::takeLatestPath(gs_msgs::WaypointArray& out)
+{
+    QMutexLocker locker(&latestPathMutex_);
+
+    if (!hasLatestPath_) {
+        return false;
+    }
+
+    out = latestPath_;
+    hasLatestPath_ = false;
+    return true;
 }

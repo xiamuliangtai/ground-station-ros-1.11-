@@ -4,14 +4,13 @@
 #include <QObject>
 #include <QList>
 #include <QPoint>
-#include <QMetaType>
+#include <QMutex>
+#include <QTimer>
 #include <memory>
 
 #include <ros/ros.h>
 #include <gs_msgs/NoFlyCells.h>
 #include <gs_msgs/WaypointArray.h>
-
-Q_DECLARE_METATYPE(gs_msgs::WaypointArray)
 
 class RosInterface : public QObject
 {
@@ -24,8 +23,13 @@ public:
     bool init();
     void publishNoFlyCells(const QList<QPoint>& blocks);
 
+    bool takeLatestPath(gs_msgs::WaypointArray& out);
+
 signals:
-    void pathReceived(const gs_msgs::WaypointArray& msg);
+    void pathAvailable();
+
+private slots:
+    void spinOnce();
 
 private:
     void pathCallback(const gs_msgs::WaypointArray::ConstPtr& msg);
@@ -33,10 +37,15 @@ private:
 private:
     bool initialized_ = false;
     std::unique_ptr<ros::NodeHandle> nh_;
-    std::unique_ptr<ros::AsyncSpinner> spinner_;
 
     ros::Publisher noFlyPub_;
     ros::Subscriber pathSub_;
+
+    QTimer *spinTimer_ = nullptr;
+
+    QMutex latestPathMutex_;
+    gs_msgs::WaypointArray latestPath_;
+    bool hasLatestPath_ = false;
 };
 
 #endif // ROS_INTERFACE_H
