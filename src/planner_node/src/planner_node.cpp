@@ -26,11 +26,21 @@ private:
     using Cell = std::pair<int, int>;    // external: (col, row)
     using CellRC = std::pair<int, int>;  // internal: (row, col)
 
+    enum Direction
+    {
+        DIR_NONE  = 0,
+        DIR_UP    = 1,
+        DIR_DOWN  = 2,
+        DIR_LEFT  = 3,
+        DIR_RIGHT = 4
+    };
+
     struct CandidatePath
     {
         std::vector<Cell> raw_path;
         std::vector<Cell> simplified_path;
         int corner_count = INT_MAX;
+        int simplified_length = INT_MAX;
         int raw_length = INT_MAX;
         bool valid = false;
     };
@@ -54,6 +64,32 @@ private:
     static Cell fromRC(const CellRC& p)
     {
         return {p.second, p.first};
+    }
+
+    static int directionRC(const CellRC& from, const CellRC& to)
+    {
+        if (to.first < from.first) return DIR_UP;
+        if (to.first > from.first) return DIR_DOWN;
+        if (to.second < from.second) return DIR_LEFT;
+        if (to.second > from.second) return DIR_RIGHT;
+        return DIR_NONE;
+    }
+
+    static int modeRank(int mode, int dir)
+    {
+        static const int orders[4][4] = {
+            {DIR_UP, DIR_LEFT, DIR_DOWN, DIR_RIGHT},
+            {DIR_LEFT, DIR_UP, DIR_RIGHT, DIR_DOWN},
+            {DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT},
+            {DIR_LEFT, DIR_DOWN, DIR_RIGHT, DIR_UP}
+        };
+
+        for (int i = 0; i < 4; ++i) {
+            if (orders[mode % 4][i] == dir) {
+                return i;
+            }
+        }
+        return 99;
     }
 
     std::set<CellRC> parseBlockedCellsRC(const gs_msgs::NoFlyCells::ConstPtr& msg) const
@@ -87,44 +123,6 @@ private:
         return std::abs(a.first - b.first) + std::abs(a.second - b.second);
     }
 
-    bool dfs(const CellRC& current,
-             std::vector<CellRC>& path,
-             bool visited[8][10],
-             int remainSteps,
-             const std::chrono::steady_clock::time_point& startTime,
-             bool& timeout) const
-    {
-        if (timeout) return false;
-
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now() - startTime).count();
-
-        if (elapsed > 800) {
-            timeout = true;
-            return false;
-        }
-
-        if (remainSteps == 0) {
-            return true;
-        }
-
-        for (const auto& nb : getNeighborsRC(current)) {
-            if (!visited[nb.first][nb.second]) {
-                visited[nb.first][nb.second] = true;
-                path.push_back(nb);
-
-                if (dfs(nb, path, visited, remainSteps - 1, startTime, timeout)) {
-                    return true;
-                }
-
-                path.pop_back();
-                visited[nb.first][nb.second] = false;
-            }
-        }
-
-        return false;
-    }
-
     int countUnvisitedNeighbors(const CellRC& p,
                                 const std::set<CellRC>& blocked,
                                 const std::set<CellRC>& visited) const
@@ -147,6 +145,38 @@ private:
             if (!blocked.count(nb) && !visited.count(nb)) {
                 for (const auto& nb2 : getNeighborsRC(nb)) {
                     if (!blocked.count(nb2) && !visited.count(nb2) && nb2 != p) {
+                        ++cnt;
+                    }
+                }
+            }
+        }
+        return cnt;
+    }
+
+    int countUnvisitedNeighbors(const CellRC& p,
+                                const std::set<CellRC>& blocked,
+                                bool visited[8][10]) const
+    {
+        int cnt = 0;
+        for (const auto& nb : getNeighborsRC(p)) {
+            if (!blocked.count(nb) && !visited[nb.first][nb.second]) {
+                ++cnt;
+            }
+        }
+        return cnt;
+    }
+
+    int countSecondDegree(const CellRC& p,
+                          const std::set<CellRC>& blocked,
+                          bool visited[8][10]) const
+    {
+        int cnt = 0;
+        for (const auto& nb : getNeighborsRC(p)) {
+            if (!blocked.count(nb) && !visited[nb.first][nb.second]) {
+                for (const auto& nb2 : getNeighborsRC(nb)) {
+                    if (!blocked.count(nb2) &&
+                        !visited[nb2.first][nb2.second] &&
+                        nb2 != p) {
                         ++cnt;
                     }
                 }
@@ -181,8 +211,89 @@ private:
         return best;
     }
 
+    std::vector<CellRC> sortedNeighborsForDfs(const CellRC& current,
+                                              const std::set<CellRC>& blocked,
+                                              bool visited[8][10],
+                                              int prevDir,
+                                              int mode) const
+    {
+        std::vector<CellRC> candidates;
+        for (const auto& nb : getNeighborsRC(current)) {
+            if (!blocked.count(nb) && !visited[nb.first][nb.second]) {
+                candidates.push_back(nb);
+            }
+        }
+
+        std::sort(candidates.begin(), candidates.end(),
+                  [&](const CellRC& a, const CellRC& b) {
+                      int dirA = directionRC(current, a);
+                      int dirB = directionRC(current, b);
+
+                      int turnA = (prevDir == DIR_NONE) ? 0 : (dirA == prevDir ? 0 : 1);
+                      int turnB = (prevDir == DIR_NONE) ? 0 : (dirB == prevDir ? 0 : 1);
+                      if (turnA != turnB) return turnA < turnB;
+
+                      int aCnt1 = countUnvisitedNeighbors(a, blocked, visited);
+                      int bCnt1 = countUnvisitedNeighbors(b, blocked, visited);
+                      if (aCnt1 != bCnt1) return aCnt1 < bCnt1;
+
+                      int aCnt2 = countSecondDegree(a, blocked, visited);
+                      int bCnt2 = countSecondDegree(b, blocked, visited);
+                      if (aCnt2 != bCnt2) return aCnt2 < bCnt2;
+
+                      return modeRank(mode, dirA) < modeRank(mode, dirB);
+                  });
+
+        return candidates;
+    }
+
+    bool dfsDirectional(const CellRC& current,
+                        std::vector<CellRC>& path,
+                        bool visited[8][10],
+                        int remainSteps,
+                        const std::set<CellRC>& blocked,
+                        const std::chrono::steady_clock::time_point& startTime,
+                        bool& timeout,
+                        int prevDir,
+                        int mode) const
+    {
+        if (timeout) return false;
+
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
+
+        if (elapsed > 800) {
+            timeout = true;
+            return false;
+        }
+
+        if (remainSteps == 0) {
+            return true;
+        }
+
+        std::vector<CellRC> candidates =
+            sortedNeighborsForDfs(current, blocked, visited, prevDir, mode);
+
+        for (const auto& nb : candidates) {
+            visited[nb.first][nb.second] = true;
+            path.push_back(nb);
+
+            int dir = directionRC(current, nb);
+            if (dfsDirectional(nb, path, visited, remainSteps - 1,
+                               blocked, startTime, timeout, dir, mode)) {
+                return true;
+            }
+
+            path.pop_back();
+            visited[nb.first][nb.second] = false;
+        }
+
+        return false;
+    }
+
     std::vector<Cell> findPathWithRepeat(const Cell& start,
-                                         const std::set<CellRC>& blocked) const
+                                         const std::set<CellRC>& blocked,
+                                         int mode) const
     {
         CellRC startRC = toRC(start);
 
@@ -208,25 +319,59 @@ private:
             }
 
             if (!candidates.empty()) {
+                int prevDir = DIR_NONE;
+                if (pathRC.size() >= 2) {
+                    prevDir = directionRC(pathRC[pathRC.size() - 2], pathRC[pathRC.size() - 1]);
+                }
+
                 std::sort(candidates.begin(), candidates.end(),
                           [&](const CellRC& a, const CellRC& b) {
+                              int dirA = directionRC(current, a);
+                              int dirB = directionRC(current, b);
+
+                              int turnA = (prevDir == DIR_NONE) ? 0 : (dirA == prevDir ? 0 : 1);
+                              int turnB = (prevDir == DIR_NONE) ? 0 : (dirB == prevDir ? 0 : 1);
+                              if (turnA != turnB) return turnA < turnB;
+
                               int aCnt1 = countUnvisitedNeighbors(a, blocked, visited);
                               int bCnt1 = countUnvisitedNeighbors(b, blocked, visited);
                               if (aCnt1 != bCnt1) return aCnt1 < bCnt1;
 
                               int aCnt2 = countSecondDegree(a, blocked, visited);
                               int bCnt2 = countSecondDegree(b, blocked, visited);
-                              return aCnt2 < bCnt2;
+                              if (aCnt2 != bCnt2) return aCnt2 < bCnt2;
+
+                              return modeRank(mode, dirA) < modeRank(mode, dirB);
                           });
 
-                int bestCnt1 = countUnvisitedNeighbors(candidates.front(), blocked, visited);
-                int bestCnt2 = countSecondDegree(candidates.front(), blocked, visited);
+                int bestTurn = INT_MAX;
+                int bestCnt1 = INT_MAX;
+                int bestCnt2 = INT_MAX;
+                int bestModeRank = INT_MAX;
 
                 std::vector<CellRC> bestCandidates;
+
                 for (const auto& cand : candidates) {
+                    int dir = directionRC(current, cand);
+                    int turn = (prevDir == DIR_NONE) ? 0 : (dir == prevDir ? 0 : 1);
                     int cnt1 = countUnvisitedNeighbors(cand, blocked, visited);
                     int cnt2 = countSecondDegree(cand, blocked, visited);
-                    if (cnt1 == bestCnt1 && cnt2 == bestCnt2) {
+                    int rank = modeRank(mode, dir);
+
+                    if (turn < bestTurn ||
+                        (turn == bestTurn && cnt1 < bestCnt1) ||
+                        (turn == bestTurn && cnt1 == bestCnt1 && cnt2 < bestCnt2) ||
+                        (turn == bestTurn && cnt1 == bestCnt1 && cnt2 == bestCnt2 && rank < bestModeRank)) {
+                        bestTurn = turn;
+                        bestCnt1 = cnt1;
+                        bestCnt2 = cnt2;
+                        bestModeRank = rank;
+                        bestCandidates.clear();
+                        bestCandidates.push_back(cand);
+                    } else if (turn == bestTurn &&
+                               cnt1 == bestCnt1 &&
+                               cnt2 == bestCnt2 &&
+                               rank == bestModeRank) {
                         bestCandidates.push_back(cand);
                     }
                 }
@@ -293,6 +438,7 @@ private:
         cand.raw_path = rawPath;
         cand.simplified_path = simplifyPath(rawPath);
         cand.corner_count = std::max(0, static_cast<int>(cand.simplified_path.size()) - 2);
+        cand.simplified_length = static_cast<int>(cand.simplified_path.size());
         cand.raw_length = static_cast<int>(cand.raw_path.size());
         cand.valid = true;
         return cand;
@@ -307,19 +453,23 @@ private:
             return lhs.corner_count < rhs.corner_count;
         }
 
+        if (lhs.simplified_length != rhs.simplified_length) {
+            return lhs.simplified_length < rhs.simplified_length;
+        }
+
         if (lhs.raw_length != rhs.raw_length) {
             return lhs.raw_length < rhs.raw_length;
         }
 
-        return lhs.simplified_path.size() < rhs.simplified_path.size();
+        return false;
     }
 
     std::vector<Cell> generatePath(const std::set<CellRC>& blocked) const
     {
         CandidatePath best;
 
-        // 候选 1：DFS 直接找完整覆盖路径
-        {
+        // 候选 1：多种方向偏好的 DFS
+        for (int mode = 0; mode < 4; ++mode) {
             bool visited[8][10] = {{false}};
             for (const auto& b : blocked) {
                 visited[b.first][b.second] = true;
@@ -335,7 +485,8 @@ private:
             auto startTime = std::chrono::steady_clock::now();
             bool timeout = false;
 
-            if (dfs(startRC, pathRC, visited, totalSteps - 1, startTime, timeout)) {
+            if (dfsDirectional(startRC, pathRC, visited, totalSteps - 1,
+                               blocked, startTime, timeout, DIR_NONE, mode)) {
                 std::vector<Cell> rawPath;
                 rawPath.reserve(pathRC.size());
                 for (const auto& p : pathRC) {
@@ -349,13 +500,15 @@ private:
             }
         }
 
-        // 候选 2：多次启发式搜索，按“拐点优先、长度次之”选最优
-        const int trialCount = 120;
-        for (int i = 0; i < trialCount; ++i) {
-            std::vector<Cell> rawPath = findPathWithRepeat({9, 7}, blocked);
-            CandidatePath repeatedCandidate = evaluateCandidate(rawPath);
-            if (betterCandidate(repeatedCandidate, best)) {
-                best = repeatedCandidate;
+        // 候选 2：多模式启发式搜索，方向连续优先
+        const int trialPerMode = 80;
+        for (int mode = 0; mode < 4; ++mode) {
+            for (int i = 0; i < trialPerMode; ++i) {
+                std::vector<Cell> rawPath = findPathWithRepeat({9, 7}, blocked, mode);
+                CandidatePath repeatedCandidate = evaluateCandidate(rawPath);
+                if (betterCandidate(repeatedCandidate, best)) {
+                    best = repeatedCandidate;
+                }
             }
         }
 
@@ -363,10 +516,10 @@ private:
             return {};
         }
 
-        ROS_INFO("[planner_node] best candidate: corners=%d, raw_len=%d, simplified=%lu",
+        ROS_INFO("[planner_node] best candidate: corners=%d, simplified=%d, raw_len=%d",
                  best.corner_count,
-                 best.raw_length,
-                 static_cast<unsigned long>(best.simplified_path.size()));
+                 best.simplified_length,
+                 best.raw_length);
 
         return best.simplified_path;
     }
