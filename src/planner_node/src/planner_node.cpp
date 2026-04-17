@@ -26,6 +26,15 @@ private:
     using Cell = std::pair<int, int>;    // external: (col, row)
     using CellRC = std::pair<int, int>;  // internal: (row, col)
 
+    struct CandidatePath
+    {
+        std::vector<Cell> raw_path;
+        std::vector<Cell> simplified_path;
+        int corner_count = INT_MAX;
+        int raw_length = INT_MAX;
+        bool valid = false;
+    };
+
     static gs_msgs::Waypoint makeGridWaypoint(int col, int row)
     {
         gs_msgs::Waypoint wp;
@@ -274,45 +283,92 @@ private:
         return simplified;
     }
 
+    static CandidatePath evaluateCandidate(const std::vector<Cell>& rawPath)
+    {
+        CandidatePath cand;
+        if (rawPath.empty()) {
+            return cand;
+        }
+
+        cand.raw_path = rawPath;
+        cand.simplified_path = simplifyPath(rawPath);
+        cand.corner_count = std::max(0, static_cast<int>(cand.simplified_path.size()) - 2);
+        cand.raw_length = static_cast<int>(cand.raw_path.size());
+        cand.valid = true;
+        return cand;
+    }
+
+    static bool betterCandidate(const CandidatePath& lhs, const CandidatePath& rhs)
+    {
+        if (!lhs.valid) return false;
+        if (!rhs.valid) return true;
+
+        if (lhs.corner_count != rhs.corner_count) {
+            return lhs.corner_count < rhs.corner_count;
+        }
+
+        if (lhs.raw_length != rhs.raw_length) {
+            return lhs.raw_length < rhs.raw_length;
+        }
+
+        return lhs.simplified_path.size() < rhs.simplified_path.size();
+    }
+
     std::vector<Cell> generatePath(const std::set<CellRC>& blocked) const
     {
-        bool visited[8][10] = {{false}};
-        for (const auto& b : blocked) {
-            visited[b.first][b.second] = true;
-        }
+        CandidatePath best;
 
-        CellRC startRC = {7, 9}; // (row, col) => external (9,7)
-        int totalSteps = 7 * 9 - static_cast<int>(blocked.size());
-
-        std::vector<CellRC> pathRC;
-        pathRC.push_back(startRC);
-        visited[startRC.first][startRC.second] = true;
-
-        auto startTime = std::chrono::steady_clock::now();
-        bool timeout = false;
-
-        std::vector<Cell> result;
-
-        if (dfs(startRC, pathRC, visited, totalSteps - 1, startTime, timeout)) {
-            result.reserve(pathRC.size());
-            for (const auto& p : pathRC) {
-                result.push_back(fromRC(p));
+        // 候选 1：DFS 直接找完整覆盖路径
+        {
+            bool visited[8][10] = {{false}};
+            for (const auto& b : blocked) {
+                visited[b.first][b.second] = true;
             }
-        } else {
-            std::vector<Cell> bestPath;
-            int bestLength = INT_MAX;
 
-            for (int i = 0; i < 100; ++i) {
-                std::vector<Cell> path = findPathWithRepeat({9, 7}, blocked);
-                if (!path.empty() && static_cast<int>(path.size()) < bestLength) {
-                    bestLength = static_cast<int>(path.size());
-                    bestPath = path;
+            CellRC startRC = {7, 9}; // (row, col) => external (9,7)
+            int totalSteps = 7 * 9 - static_cast<int>(blocked.size());
+
+            std::vector<CellRC> pathRC;
+            pathRC.push_back(startRC);
+            visited[startRC.first][startRC.second] = true;
+
+            auto startTime = std::chrono::steady_clock::now();
+            bool timeout = false;
+
+            if (dfs(startRC, pathRC, visited, totalSteps - 1, startTime, timeout)) {
+                std::vector<Cell> rawPath;
+                rawPath.reserve(pathRC.size());
+                for (const auto& p : pathRC) {
+                    rawPath.push_back(fromRC(p));
+                }
+
+                CandidatePath dfsCandidate = evaluateCandidate(rawPath);
+                if (betterCandidate(dfsCandidate, best)) {
+                    best = dfsCandidate;
                 }
             }
-            result = bestPath;
         }
 
-        return simplifyPath(result);
+        // 候选 2：多次启发式搜索，按“拐点优先、长度次之”选最优
+        const int trialCount = 120;
+        for (int i = 0; i < trialCount; ++i) {
+            std::vector<Cell> rawPath = findPathWithRepeat({9, 7}, blocked);
+            CandidatePath repeatedCandidate = evaluateCandidate(rawPath);
+            if (betterCandidate(repeatedCandidate, best)) {
+                best = repeatedCandidate;
+            }
+        }
+
+        if (!best.valid) {
+            return {};
+        }
+
+        ROS_INFO("[planner_node] best candidate: corners=%d, raw_len=%d, simplified=%lu",
+                 best.corner_count,
+                 best.raw_length,
+                 static_cast<unsigned long>(best.simplified_path.size()));
+
+        return best.simplified_path;
     }
 
     gs_msgs::WaypointArray toWaypointArray(const std::vector<Cell>& path) const
