@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(stm32_bridge_node)
 
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
@@ -19,6 +22,7 @@ include_directories(
 
 add_executable(stm32_bridge_node
   src/main.cpp
+  src/bridge_node.cpp
 )
 
 add_dependencies(stm32_bridge_node
