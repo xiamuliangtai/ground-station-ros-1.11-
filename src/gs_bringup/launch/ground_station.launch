@@ -1,5 +1,18 @@
 <launch>
+    <arg name="bridge_port" default="/dev/ttyUSB0"/>
+    <arg name="bridge_baudrate" default="115200"/>
+    <arg name="bridge_dry_run" default="true"/>
+    <arg name="bridge_serial_poll_ms" default="20"/>
+    <arg name="bridge_ack_timeout_ms" default="500"/>
+
     <node pkg="planner_node" type="planner_node" name="planner_node" output="screen"/>
     <node pkg="ui_node" type="ui_node" name="ui_node" output="screen"/>
-    <node pkg="stm32_bridge_node" type="stm32_bridge_node" name="stm32_bridge_node" output="screen"/>
+
+    <node pkg="stm32_bridge_node" type="stm32_bridge_node" name="stm32_bridge_node" output="screen">
+        <param name="port" value="$(arg bridge_port)"/>
+        <param name="baudrate" value="$(arg bridge_baudrate)"/>
+        <param name="dry_run" value="$(arg bridge_dry_run)"/>
+        <param name="serial_poll_ms" value="$(arg bridge_serial_poll_ms)"/>
+        <param name="ack_timeout_ms" value="$(arg bridge_ack_timeout_ms)"/>
+    </node>
 </launch>
