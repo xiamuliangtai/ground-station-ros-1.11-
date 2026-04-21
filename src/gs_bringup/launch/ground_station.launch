@@ -1,7 +1,7 @@
 <launch>
-    <arg name="bridge_port" default="/dev/ttyUSB0"/>
-    <arg name="bridge_baudrate" default="115200"/>
-    <arg name="bridge_dry_run" default="true"/>
+    <arg name="bridge_port" default="/dev/ttyACM0"/>
+    <arg name="bridge_baudrate" default="500000"/>
+    <arg name="bridge_dry_run" default="false"/>
     <arg name="bridge_serial_poll_ms" default="20"/>
     <arg name="bridge_ack_timeout_ms" default="500"/>
 
