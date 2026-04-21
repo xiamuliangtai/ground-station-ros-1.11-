@@ -9,6 +9,7 @@
 #include <ros/ros.h>
 #include <gs_msgs/WaypointArray.h>
 #include <gs_msgs/MissionStatus.h>
+#include <gs_msgs/AnimalReport.h>
 
 namespace stm32_bridge_node
 {
@@ -36,6 +37,7 @@ private:
     bool tryParseOneFrame(std::vector<uint8_t>& frame);
     bool handleIncomingFrame(const std::vector<uint8_t>& frame, std::string& error);
     bool handleAckUploadPath(const std::vector<uint8_t>& frame, std::string& error);
+    bool handleAnimalReport(const std::vector<uint8_t>& frame, std::string& error);
 
     void publishMissionStatus(uint8_t state,
                               uint16_t current_index,
@@ -56,6 +58,7 @@ private:
 
     ros::Subscriber path_sub_;
     ros::Publisher mission_status_pub_;
+    ros::Publisher animal_report_pub_;
     ros::Timer serial_poll_timer_;
 
     std::string path_topic_;
@@ -70,6 +73,7 @@ private:
 
     uint8_t upload_msg_id_;
     uint8_t ack_upload_msg_id_;
+    uint8_t animal_report_msg_id_;
     uint8_t seq_;
 
     int serial_fd_;

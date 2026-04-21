@@ -33,6 +33,7 @@ bool RosInterface::init()
 
     noFlyPub_ = nh_->advertise<gs_msgs::NoFlyCells>("/ui/no_fly_cells", 1);
     pathSub_ = nh_->subscribe("/planner/path", 1, &RosInterface::pathCallback, this);
+    animalReportSub_ = nh_->subscribe("/stm32/animal_report", 20, &RosInterface::animalReportCallback, this);
 
     spinTimer_ = new QTimer(this);
     connect(spinTimer_, &QTimer::timeout, this, &RosInterface::spinOnce);
@@ -85,8 +86,23 @@ void RosInterface::pathCallback(const gs_msgs::WaypointArray::ConstPtr& msg)
     }
 
     qDebug() << "[RosInterface] received /planner/path, size =" << msg->points.size();
-
     emit pathAvailable();
+}
+
+void RosInterface::animalReportCallback(const gs_msgs::AnimalReport::ConstPtr& msg)
+{
+    {
+        QMutexLocker locker(&latestAnimalReportMutex_);
+        latestAnimalReport_ = *msg;
+        hasLatestAnimalReport_ = true;
+    }
+
+    qDebug() << "[RosInterface] received /stm32/animal_report:"
+             << "animal_code =" << msg->animal_code
+             << ", col =" << msg->col
+             << ", row =" << msg->row;
+
+    emit animalReportAvailable();
 }
 
 bool RosInterface::takeLatestPath(gs_msgs::WaypointArray& out)
@@ -99,5 +115,18 @@ bool RosInterface::takeLatestPath(gs_msgs::WaypointArray& out)
 
     out = latestPath_;
     hasLatestPath_ = false;
+    return true;
+}
+
+bool RosInterface::takeLatestAnimalReport(gs_msgs::AnimalReport& out)
+{
+    QMutexLocker locker(&latestAnimalReportMutex_);
+
+    if (!hasLatestAnimalReport_) {
+        return false;
+    }
+
+    out = latestAnimalReport_;
+    hasLatestAnimalReport_ = false;
     return true;
 }

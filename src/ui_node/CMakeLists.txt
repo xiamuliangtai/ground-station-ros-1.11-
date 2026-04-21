@@ -19,7 +19,6 @@ find_package(Qt5 REQUIRED COMPONENTS
   Core
   Gui
   Widgets
-  SerialPort
 )
 
 catkin_package(
@@ -43,16 +42,12 @@ set(RESOURCE_FILES
 
 set(HEADER_FILES
   include/ui_node/mainwindow.h
-  include/ui_node/serialport.h
-  include/ui_node/simplepathgenerator.h
   include/ui_node/ros_interface.h
 )
 
 set(SRC_FILES
   src/main.cpp
   src/mainwindow.cpp
-  src/serialport.cpp
-  src/simplepathgenerator.cpp
   src/ros_interface.cpp
 )
 
@@ -73,5 +68,4 @@ target_link_libraries(ui_node
   Qt5::Core
   Qt5::Gui
   Qt5::Widgets
-  Qt5::SerialPort
 )

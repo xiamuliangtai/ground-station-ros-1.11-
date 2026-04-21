@@ -1,14 +1,14 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include "qserialport.h"
 #include <QMainWindow>
 #include <QPixmap>
+#include <QList>
+#include <QPoint>
+#include <QString>
 #include <QPainter>
-#include<QPixmap>
-#include<QThread>
-#include<simplepathgenerator.h>
-#include"serialport.h"
+#include <QPen>
+
 #include "ui_node/ros_interface.h"
 
 QT_BEGIN_NAMESPACE
@@ -22,58 +22,42 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+
 private slots:
-    void onCellClicked(int row, int col);  // 点击格子
+    void onCellClicked(int row, int col);
     void on_pushButton_clicked();
     void on_pushButton_2_clicked();
-    void drawPathOnLabel(QList<QPoint> path);
-    void on_block(QList<QPoint> block);
-    void on_animal(int animal,QString x,QString y);
     void onPathAvailable();
-    //void onTelemetryReceived(const gs_msgs::Telemetry& msg);
-    //void onMissionStatusReceived(const gs_msgs::MissionStatus& msg);
+    void onAnimalReportAvailable();
 
 private:
-    // === 当前主链路（保留） ===
-    // UI -> RosInterface -> planner_node -> RosInterface -> UI绘图
-    Ui::MainWindow *ui;
-    RosInterface *rosIf_;
-    int count=0;
+    void drawPathOnLabel(const QList<QPoint>& path);
+    void resetAnimalStats();
+    void updateBlockedLabels();
+    void applyAnimalReport(int animal, int col, int row);
+    QPoint gridToPixel(int col, int row);
+
+private:
+    Ui::MainWindow *ui = nullptr;
+    RosInterface *rosIf_ = nullptr;
+
+    int count = 0;
     QList<QPoint> m_block;
-    QPoint gridToPixel(int row, int col);
     QPixmap map;
-    // TODO(stage-next): 旧本地路径生成器属于历史逻辑，后续迁移/删除。
-    // 当前阶段仅做隔离，不激进移除。
-    SimplePathGenerator *test = nullptr;
-    serialPort* test1 = nullptr;
-    // TODO(stage-next): 与本地路径生成器绑定的旧线程，后续随旧规划逻辑一并迁移/移除。
-    QThread *thread = nullptr;
-    QThread *thread1 = nullptr;
-    // TODO(stage-next): UI内直接串口写入属于后续迁移对象（建议迁移到独立 bridge node）。
-    QSerialPort *serial = nullptr;
-    QByteArray pathData;
-    uint hu=0;
-    uint xiang=0;
-    uint hou=0;
-    uint que=0;
-    uint lang=0;
+
+    uint hu = 0;
+    uint xiang = 0;
+    uint hou = 0;
+    uint que = 0;
+    uint lang = 0;
+
     QList<QString> huPosition;
     QList<QString> houPosition;
     QList<QString> xiangPosition;
     QList<QString> quePosition;
     QList<QString> langPosition;
-    QString position1="";
-    QString position2="";
-    QString position3="";
-    QString position4="";
-    QString position5="";
-
-signals:
-    void run(QList<QPoint> block);
-    void run1();
-    void clearData();
 };
 
 #endif // MAINWINDOW_H

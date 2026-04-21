@@ -12,6 +12,7 @@ add_message_files(
   Waypoint.msg
   WaypointArray.msg
   MissionStatus.msg
+  AnimalReport.msg
 )
 
 generate_messages(
