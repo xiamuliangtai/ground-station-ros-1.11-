@@ -31,6 +31,7 @@ BridgeNode::BridgeNode(ros::NodeHandle& nh, ros::NodeHandle& pnh)
     , pnh_(pnh)
     , upload_msg_id_(0x01)
     , ack_upload_msg_id_(0x81)
+    , animal_report_msg_id_(0x02)
     , seq_(0)
     , serial_fd_(-1)
     , waiting_ack_(false)
@@ -41,14 +42,15 @@ BridgeNode::BridgeNode(ros::NodeHandle& nh, ros::NodeHandle& pnh)
     pnh_.param<int>("queue_size", queue_size_, 10);
     pnh_.param<int>("print_precision", print_precision_, 3);
 
-    pnh_.param<std::string>("port", port_name_, std::string("/dev/ttyUSB0"));
-    pnh_.param<int>("baudrate", baudrate_, 115200);
-    pnh_.param<bool>("dry_run", dry_run_, true);
+    pnh_.param<std::string>("port", port_name_, std::string("/dev/ttyACM0"));
+    pnh_.param<int>("baudrate", baudrate_, 500000);
+    pnh_.param<bool>("dry_run", dry_run_, false);
     pnh_.param<int>("serial_poll_ms", serial_poll_ms_, 20);
     pnh_.param<int>("ack_timeout_ms", ack_timeout_ms_, 500);
 
     path_sub_ = nh_.subscribe(path_topic_, queue_size_, &BridgeNode::pathCallback, this);
     mission_status_pub_ = nh_.advertise<gs_msgs::MissionStatus>("/mission/status", 10, true);
+    animal_report_pub_ = nh_.advertise<gs_msgs::AnimalReport>("/stm32/animal_report", 20);
 
     const double poll_sec = static_cast<double>(serial_poll_ms_) / 1000.0;
     serial_poll_timer_ = nh_.createTimer(ros::Duration(poll_sec),
@@ -557,6 +559,10 @@ bool BridgeNode::handleIncomingFrame(const std::vector<uint8_t>& frame, std::str
         return handleAckUploadPath(frame, error);
     }
 
+    if (msg_id == animal_report_msg_id_) {
+        return handleAnimalReport(frame, error);
+    }
+
     std::ostringstream oss;
     oss << "unknown msg_id=" << static_cast<int>(msg_id);
     error = oss.str();
@@ -615,6 +621,54 @@ bool BridgeNode::handleAckUploadPath(const std::vector<uint8_t>& frame, std::str
         << ", accepted_count=" << accepted_count;
     publishMissionStatus(STATE_ACK_FAIL, 0, accepted_count, oss.str());
     waiting_ack_ = false;
+    return true;
+}
+
+bool BridgeNode::handleAnimalReport(const std::vector<uint8_t>& frame, std::string& error)
+{
+    error.clear();
+
+    const uint16_t payload_len =
+        static_cast<uint16_t>(frame[4]) |
+        (static_cast<uint16_t>(frame[5]) << 8);
+
+    if (payload_len != 3) {
+        error = "animal report payload length is not 3";
+        return false;
+    }
+
+    const uint8_t seq = frame[3];
+    const uint8_t animal_code = frame[6];
+    const uint8_t col = frame[7];
+    const uint8_t row = frame[8];
+
+    if (animal_code > 4U) {
+        error = "animal_code out of range [0,4]";
+        return false;
+    }
+
+    if (col < 1U || col > 9U) {
+        error = "animal report col out of range [1,9]";
+        return false;
+    }
+
+    if (row < 1U || row > 7U) {
+        error = "animal report row out of range [1,7]";
+        return false;
+    }
+
+    gs_msgs::AnimalReport msg;
+    msg.animal_code = animal_code;
+    msg.col = col;
+    msg.row = row;
+    animal_report_pub_.publish(msg);
+
+    ROS_INFO("[stm32_bridge_node] publish /stm32/animal_report: seq=%u, animal_code=%u, col=%u, row=%u",
+             static_cast<unsigned int>(seq),
+             static_cast<unsigned int>(animal_code),
+             static_cast<unsigned int>(col),
+             static_cast<unsigned int>(row));
+
     return true;
 }
 
