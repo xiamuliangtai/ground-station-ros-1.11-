@@ -100,7 +100,8 @@ void RosInterface::animalReportCallback(const gs_msgs::AnimalReport::ConstPtr& m
     qDebug() << "[RosInterface] received /stm32/animal_report:"
              << "animal_code =" << msg->animal_code
              << ", col =" << msg->col
-             << ", row =" << msg->row;
+             << ", row =" << msg->row
+             << ", count =" << msg->count;
 
     emit animalReportAvailable();
 }

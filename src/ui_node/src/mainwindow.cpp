@@ -128,6 +128,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->label_2->setText("NULL");
     ui->label_3->setText("NULL");
     ui->label_4->setText("NULL");
+
     resetAnimalStats();
 }
 
@@ -138,23 +139,76 @@ MainWindow::~MainWindow()
 
 void MainWindow::resetAnimalStats()
 {
-    xiang = 0;
-    hu = 0;
-    lang = 0;
-    hou = 0;
-    que = 0;
+    for (int animal = 0; animal < 5; ++animal) {
+        for (int col = 0; col < 10; ++col) {
+            for (int row = 0; row < 8; ++row) {
+                animalGridCount_[animal][col][row] = 0;
+            }
+        }
+    }
 
-    xiangPosition.clear();
-    huPosition.clear();
-    langPosition.clear();
-    houPosition.clear();
-    quePosition.clear();
+    refreshAnimalLabels();
+}
 
-    ui->label_6->setText(QStringLiteral("象：") + QString::number(xiang));
-    ui->label_7->setText(QStringLiteral("虎：") + QString::number(hu));
-    ui->label_8->setText(QStringLiteral("狼：") + QString::number(lang));
-    ui->label_9->setText(QStringLiteral("猴：") + QString::number(hou));
-    ui->label_10->setText(QStringLiteral("孔雀：") + QString::number(que));
+void MainWindow::refreshAnimalLabels()
+{
+    uint xiang = 0;
+    uint hu = 0;
+    uint lang = 0;
+    uint hou = 0;
+    uint que = 0;
+
+    QList<QString> xiangPosition;
+    QList<QString> huPosition;
+    QList<QString> langPosition;
+    QList<QString> houPosition;
+    QList<QString> quePosition;
+
+    for (int animal = 0; animal < 5; ++animal) {
+        for (int col = 1; col <= 9; ++col) {
+            for (int row = 1; row <= 7; ++row) {
+                const int c = animalGridCount_[animal][col][row];
+                if (c <= 0) {
+                    continue;
+                }
+
+                const QString pos = " (A" + QString::number(col)
+                                  + ",B" + QString::number(row)
+                                  + ")x" + QString::number(c);
+
+                switch (animal) {
+                case 0:
+                    xiang += static_cast<uint>(c);
+                    xiangPosition.append(pos);
+                    break;
+                case 1:
+                    hu += static_cast<uint>(c);
+                    huPosition.append(pos);
+                    break;
+                case 2:
+                    lang += static_cast<uint>(c);
+                    langPosition.append(pos);
+                    break;
+                case 3:
+                    hou += static_cast<uint>(c);
+                    houPosition.append(pos);
+                    break;
+                case 4:
+                    que += static_cast<uint>(c);
+                    quePosition.append(pos);
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+    }
+
+    ui->label_6->setText(QStringLiteral("象：") + QString::number(xiang) + joinPositions(xiangPosition));
+    ui->label_7->setText(QStringLiteral("虎：") + QString::number(hu) + joinPositions(huPosition));
+    ui->label_8->setText(QStringLiteral("狼：") + QString::number(lang) + joinPositions(langPosition));
+    ui->label_9->setText(QStringLiteral("猴：") + QString::number(hou) + joinPositions(houPosition));
+    ui->label_10->setText(QStringLiteral("孔雀：") + QString::number(que) + joinPositions(quePosition));
 }
 
 void MainWindow::updateBlockedLabels()
@@ -258,40 +312,36 @@ void MainWindow::drawPathOnLabel(const QList<QPoint>& path)
     qDebug() << "[drawPathOnLabel] exit";
 }
 
-void MainWindow::applyAnimalReport(int animal, int col, int row)
+void MainWindow::applyAnimalReport(int animal, int col, int row, int count)
 {
-    const QString position = " (A" + QString::number(col) + ",B" + QString::number(row) + ") ";
-
-    switch (animal) {
-    case 0:
-        xiang++;
-        xiangPosition.append(position);
-        ui->label_6->setText(QStringLiteral("象：") + QString::number(xiang) + joinPositions(xiangPosition));
-        break;
-    case 1:
-        hu++;
-        huPosition.append(position);
-        ui->label_7->setText(QStringLiteral("虎：") + QString::number(hu) + joinPositions(huPosition));
-        break;
-    case 2:
-        lang++;
-        langPosition.append(position);
-        ui->label_8->setText(QStringLiteral("狼：") + QString::number(lang) + joinPositions(langPosition));
-        break;
-    case 3:
-        hou++;
-        houPosition.append(position);
-        ui->label_9->setText(QStringLiteral("猴：") + QString::number(hou) + joinPositions(houPosition));
-        break;
-    case 4:
-        que++;
-        quePosition.append(position);
-        ui->label_10->setText(QStringLiteral("孔雀：") + QString::number(que) + joinPositions(quePosition));
-        break;
-    default:
+    if (animal < 0 || animal > 4) {
         qDebug() << "[MainWindow] invalid animal code:" << animal;
-        break;
+        return;
     }
+
+    if (col < 1 || col > 9 || row < 1 || row > 7) {
+        qDebug() << "[MainWindow] invalid animal grid:" << col << row;
+        return;
+    }
+
+    if (count <= 0) {
+        qDebug() << "[MainWindow] invalid animal count:" << count;
+        return;
+    }
+
+    int &stored = animalGridCount_[animal][col][row];
+    if (count <= stored) {
+        qDebug() << "[MainWindow] ignore non-increasing report:"
+                 << "animal =" << animal
+                 << ", col =" << col
+                 << ", row =" << row
+                 << ", new_count =" << count
+                 << ", stored =" << stored;
+        return;
+    }
+
+    stored = count;
+    refreshAnimalLabels();
 }
 
 void MainWindow::onAnimalReportAvailable()
@@ -305,11 +355,13 @@ void MainWindow::onAnimalReportAvailable()
     qDebug() << "[MainWindow] onAnimalReportAvailable:"
              << "animal_code =" << msg.animal_code
              << ", col =" << msg.col
-             << ", row =" << msg.row;
+             << ", row =" << msg.row
+             << ", count =" << msg.count;
 
     applyAnimalReport(static_cast<int>(msg.animal_code),
                       static_cast<int>(msg.col),
-                      static_cast<int>(msg.row));
+                      static_cast<int>(msg.row),
+                      static_cast<int>(msg.count));
 }
 
 void MainWindow::on_pushButton_clicked()

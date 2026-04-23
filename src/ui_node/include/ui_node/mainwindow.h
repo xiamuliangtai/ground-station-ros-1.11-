@@ -35,8 +35,9 @@ private slots:
 private:
     void drawPathOnLabel(const QList<QPoint>& path);
     void resetAnimalStats();
+    void refreshAnimalLabels();
     void updateBlockedLabels();
-    void applyAnimalReport(int animal, int col, int row);
+    void applyAnimalReport(int animal, int col, int row, int count);
     QPoint gridToPixel(int col, int row);
 
 private:
@@ -47,17 +48,7 @@ private:
     QList<QPoint> m_block;
     QPixmap map;
 
-    uint hu = 0;
-    uint xiang = 0;
-    uint hou = 0;
-    uint que = 0;
-    uint lang = 0;
-
-    QList<QString> huPosition;
-    QList<QString> houPosition;
-    QList<QString> xiangPosition;
-    QList<QString> quePosition;
-    QList<QString> langPosition;
+    int animalGridCount_[5][10][8] = {};
 };
 
 #endif // MAINWINDOW_H

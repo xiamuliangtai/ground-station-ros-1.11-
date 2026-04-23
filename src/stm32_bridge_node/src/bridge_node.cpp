@@ -632,8 +632,8 @@ bool BridgeNode::handleAnimalReport(const std::vector<uint8_t>& frame, std::stri
         static_cast<uint16_t>(frame[4]) |
         (static_cast<uint16_t>(frame[5]) << 8);
 
-    if (payload_len != 3) {
-        error = "animal report payload length is not 3";
+    if (payload_len != 4) {
+        error = "animal report payload length is not 4";
         return false;
     }
 
@@ -641,6 +641,7 @@ bool BridgeNode::handleAnimalReport(const std::vector<uint8_t>& frame, std::stri
     const uint8_t animal_code = frame[6];
     const uint8_t col = frame[7];
     const uint8_t row = frame[8];
+    const uint8_t count = frame[9];
 
     if (animal_code > 4U) {
         error = "animal_code out of range [0,4]";
@@ -657,17 +658,24 @@ bool BridgeNode::handleAnimalReport(const std::vector<uint8_t>& frame, std::stri
         return false;
     }
 
+    if (count < 1U) {
+        error = "animal report count out of range [1,255]";
+        return false;
+    }
+
     gs_msgs::AnimalReport msg;
     msg.animal_code = animal_code;
     msg.col = col;
     msg.row = row;
+    msg.count = count;
     animal_report_pub_.publish(msg);
 
-    ROS_INFO("[stm32_bridge_node] publish /stm32/animal_report: seq=%u, animal_code=%u, col=%u, row=%u",
+    ROS_INFO("[stm32_bridge_node] publish /stm32/animal_report: seq=%u, animal_code=%u, col=%u, row=%u, count=%u",
              static_cast<unsigned int>(seq),
              static_cast<unsigned int>(animal_code),
              static_cast<unsigned int>(col),
-             static_cast<unsigned int>(row));
+             static_cast<unsigned int>(row),
+             static_cast<unsigned int>(count));
 
     return true;
 }
