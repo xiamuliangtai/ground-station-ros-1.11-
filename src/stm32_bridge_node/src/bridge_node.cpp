@@ -276,14 +276,28 @@ bool BridgeNode::buildUploadPathFrame(const gs_msgs::WaypointArray& msg,
 
         if (row < 1 || row > 7) {
             std::ostringstream oss;
-            oss << "point[" << i << "] row out of range [1,7]: " << row;
+            oss << "point[" << i << "] internal row out of range [1,7]: " << row;
+            error = oss.str();
+            frame.clear();
+            return false;
+        }
+
+        // 最小改法：
+        // planner 内部坐标保持不变，只在发给 STM32 时做行坐标映射
+        // 内部 row=7 -> 外部 row=1
+        // 内部 row=1 -> 外部 row=7
+        const int tx_row = 8 - row;
+
+        if (tx_row < 1 || tx_row > 7) {
+            std::ostringstream oss;
+            oss << "point[" << i << "] tx_row out of range [1,7]: " << tx_row;
             error = oss.str();
             frame.clear();
             return false;
         }
 
         frame.push_back(static_cast<uint8_t>(col));
-        frame.push_back(static_cast<uint8_t>(row));
+        frame.push_back(static_cast<uint8_t>(tx_row));
         frame.push_back(static_cast<uint8_t>(p.type));
         appendUint16LE(frame, static_cast<uint16_t>(p.hold_ms));
         frame.push_back(0x00);
